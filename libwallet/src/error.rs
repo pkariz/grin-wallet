@@ -222,6 +222,10 @@ pub enum ErrorKind {
 	#[fail(display = "Can't downgrade slate: {}", _0)]
 	SlateInvalidDowngrade(String),
 
+	/// Slate is not in the expected state
+	#[fail(display = "Slate is not in the expected state")]
+	SlateUnexpectedState,
+
 	/// Compatibility error between incoming slate versions and what's expected
 	#[fail(display = "Compatibility Error: {}", _0)]
 	Compatibility(String),

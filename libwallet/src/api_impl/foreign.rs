@@ -20,7 +20,7 @@ use crate::api_impl::owner::{check_ttl, post_tx};
 use crate::grin_core::core::FeeFields;
 use crate::grin_keychain::Keychain;
 use crate::grin_util::secp::key::SecretKey;
-use crate::internal::{selection, tx, updater};
+use crate::internal::{tx, updater};
 use crate::slate_versions::SlateVersion;
 use crate::{
 	address, BlockFees, CbData, Error, ErrorKind, NodeClient, Slate, SlateState, TxLogEntryType,
@@ -142,31 +142,7 @@ where
 	C: NodeClient + 'a,
 	K: Keychain + 'a,
 {
-	let mut sl = slate.clone();
-	let context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
-	if sl.state == SlateState::Invoice2 {
-		check_ttl(w, &sl)?;
-
-		// Add our contribution to the offset
-		sl.adjust_offset(&w.keychain(keychain_mask)?, &context)?;
-
-		let mut temp_ctx = context.clone();
-		temp_ctx.sec_key = context.initial_sec_key.clone();
-		temp_ctx.sec_nonce = context.initial_sec_nonce.clone();
-		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &temp_ctx, false)?;
-
-		tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
-		tx::update_stored_tx(&mut *w, keychain_mask, &context, &mut sl, true)?;
-		{
-			let mut batch = w.batch(keychain_mask)?;
-			batch.delete_private_context(sl.id.as_bytes())?;
-			batch.commit()?;
-		}
-		sl.state = SlateState::Invoice3;
-		sl.amount = 0;
-	} else {
-		sl = owner_finalize(w, keychain_mask, slate)?;
-	}
+	let sl = owner_finalize(w, keychain_mask, slate)?;
 	if post_automatically {
 		post_tx(w.w2n_client(), sl.tx_or_err()?, true)?;
 	}

@@ -778,6 +778,10 @@ where
 	K: Keychain + 'a,
 {
 	let mut sl = slate.clone();
+	if sl.state != SlateState::Standard2 && sl.state != SlateState::Invoice2 {
+		return Err(ErrorKind::SlateUnexpectedState.into());
+	}
+	let is_invoice = sl.state == SlateState::Invoice2;
 	check_ttl(w, &sl)?;
 	let mut context = w.get_private_context(keychain_mask, sl.id.as_bytes())?;
 	let keychain = w.keychain(keychain_mask)?;
@@ -824,17 +828,29 @@ where
 	// Add our contribution to the offset
 	sl.adjust_offset(&keychain, &context)?;
 
-	selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, true)?;
+	if is_invoice {
+		let mut temp_ctx = context.clone();
+		temp_ctx.sec_key = context.initial_sec_key.clone();
+		temp_ctx.sec_nonce = context.initial_sec_nonce.clone();
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &temp_ctx, false)?;
+	} else {
+		selection::repopulate_tx(&mut *w, keychain_mask, &mut sl, &context, !is_invoice)?;
+	}
 
 	tx::complete_tx(&mut *w, keychain_mask, &mut sl, &context)?;
-	tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
-	tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, false)?;
+
+	if is_invoice {
+		sl.state = SlateState::Invoice3;
+	} else {
+		tx::verify_slate_payment_proof(&mut *w, keychain_mask, &parent_key_id, &context, &sl)?;
+		sl.state = SlateState::Standard3;
+	}
+	tx::update_stored_tx(&mut *w, keychain_mask, &context, &sl, is_invoice)?;
 	{
 		let mut batch = w.batch(keychain_mask)?;
 		batch.delete_private_context(sl.id.as_bytes())?;
 		batch.commit()?;
 	}
-	sl.state = SlateState::Standard3;
 	sl.amount = 0;
 
 	Ok(sl)
