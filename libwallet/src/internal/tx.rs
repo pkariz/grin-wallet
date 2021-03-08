@@ -430,6 +430,22 @@ where
 		})
 	}
 
+	if is_invoiced {
+		// we are missing sender's inputs, outputs and fee
+		tx.num_inputs = match slate.clone().tx {
+			Some(t) => t.body.inputs().len(),
+			None => return Err(ErrorKind::SlateUnexpectedState.into()),
+		};
+		tx.num_outputs = match slate.clone().tx {
+			Some(t) => t.body.outputs().len(),
+			None => return Err(ErrorKind::SlateUnexpectedState.into()),
+		};
+		tx.fee = Some(slate.fee_fields);
+		// we need to store tx, since that's the last step and we have a final tx
+		let filename = format!("{}.grintx", slate.id);
+		tx.stored_tx = Some(filename);
+	}
+
 	wallet.store_tx(&format!("{}", tx.tx_slate_id.unwrap()), slate.tx_or_err()?)?;
 
 	let mut batch = wallet.batch(keychain_mask)?;
