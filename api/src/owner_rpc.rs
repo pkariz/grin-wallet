@@ -1796,6 +1796,9 @@ where
 	fn init_send_tx(&self, token: Token, args: InitTxArgs) -> Result<VersionedSlate, ErrorKind> {
 		let slate = Owner::init_send_tx(self, (&token.keychain_mask).as_ref(), args)
 			.map_err(|e| e.kind())?;
+		// need to create TxLogEntry, tx_lock_outputs is one of the ways
+		Owner::tx_lock_outputs(self, (&token.keychain_mask).as_ref(), &slate)
+			.map_err(|e| e.kind())?;
 		let version = SlateVersion::V4;
 		Ok(VersionedSlate::into_version(slate, version).map_err(|e| e.kind())?)
 	}
@@ -2348,7 +2351,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 		// disable for now on windows
 		// TODO: Fix properly
 		#[cfg(not(target_os = "windows"))]
-		{
+			{
 			use grin_wallet_api::run_doctest_owner;
 			use serde_json;
 			use serde_json::Value;
@@ -2372,7 +2375,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 				$lock_tx,
 				$finalize_tx,
 				$payment_proof,
-			)
+				)
 			.unwrap()
 			.unwrap();
 
@@ -2382,7 +2385,7 @@ macro_rules! doctest_helper_json_rpc_owner_assert_response {
 					serde_json::to_string_pretty(&response).unwrap(),
 					serde_json::to_string_pretty(&expected_response).unwrap()
 				);
+				}
 			}
-		}
 	};
 }
